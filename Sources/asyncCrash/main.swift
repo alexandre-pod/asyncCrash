@@ -31,6 +31,9 @@ actor Actor1 {
         // Code causing crash :
 //        if await actor2.cache.keys.contains("this contains call cause a use of deallocated memory") { return }
 
+//        async let keys = self.actor2.cache.keys
+//        if await keys.contains("this contains call cause a use of deallocated memory") { return }
+
 //        _ = await actor2.cache.keys.map { _ in 0 }
 
 //        _ = await actor2.cache.values.map { _ in 0 }
