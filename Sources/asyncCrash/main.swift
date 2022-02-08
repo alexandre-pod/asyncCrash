@@ -1,46 +1,74 @@
 import Foundation
 
-print("Hello World")
-
-let semaphore = DispatchSemaphore(value: 0)
-
 print("Start")
+runAsync {
 
-Task {
+    let concurrentTaskCount = 100
+    let repeatingTaskCount = 100
 
-    let keys = (0...1000).map { String($0) }
+    let actor1 = Actor1()
 
     try await withThrowingTaskGroup(of: Void.self) { group in
-        for _ in 0..<100 {
+        for _ in 0..<concurrentTaskCount {
             group.addTask {
-                for key in keys {
-//                    try await Task.sleep(nanoseconds: 1_000_000_000 / 10000)
-                    _ = try await MyActor.shared.value(for: key)
+                for _ in 0..<repeatingTaskCount {
+                    _ = try await actor1.value()
                 }
             }
         }
-        print("Waiting for all")
         try await group.waitForAll()
-        print("Waiting done")
     }
-
-//    try await Task.sleep(nanoseconds: 3 * 1_000_000_000)
-    semaphore.signal()
 }
-
-semaphore.wait()
-
 print("End")
 
+// MARK: - Actors
 
-@globalActor actor Runner {
-    static let shared = Runner()
+actor Actor1 {
+
+    let actor2 = Actor2()
+
+    func value() async throws {
+        // Code causing crash :
+//        if await actor2.cache.keys.contains("this contains call cause a use of deallocated memory") { return }
+
+//        _ = await actor2.cache.keys.map { _ in 0 }
+
+//        _ = await actor2.cache.values.map { _ in 0 }
+
+        // Non crashing alternatives
+
+//        let keys = await actor2.cache.keys
+//        if keys.contains("this contains call cause a use of deallocated memory") { return }
+
+//        let keys2 = await actor2.cache.keys
+//        _ = keys2.map { _ in 0 }
+
+//        let values = await actor2.cache.values
+//        _ = values.map { _ in 0 }
+
+        try await actor2.updateCacheInMultipleContinuations()
+    }
 }
 
-actor Container {
+
+actor Actor2 {
+
     private(set) var cache: [String: String] = [:]
 
-    func set(key: String, value: String) {
-        cache[key] = value
+    func updateCacheInMultipleContinuations() async throws {
+        cache[""] = ""
     }
+}
+
+// MARK: - Utils
+
+func runAsync(_ body: @escaping () async throws -> Void) {
+    let semaphore = DispatchSemaphore(value: 0)
+
+    Task.detached {
+        try await body()
+        semaphore.signal()
+    }
+
+    semaphore.wait()
 }
